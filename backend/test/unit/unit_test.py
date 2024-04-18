@@ -13,38 +13,38 @@ def controller(dao_mock):
     yield controller
 @pytest.mark.unit
 class TestUserController:
-    def test_single_user_valid_email(self, dao_mock, controller):
-        dao_mock.find.return_value = [{'email': 'test@example.com', 'name': 'Test User'}]
-        expected_user = {'email': 'test@example.com', 'name': 'Test User'}
-        result = controller.get_user_by_email('test@example.com')
-        dao_mock.find.assert_called_once_with({'email': 'test@example.com'})
-        assert result == expected_user
+    def test_valid_email_single_user(self, dao_mock, controller):
+        dao_mock.find.return_value = [{'email': 'john@doe.com', 'name': 'John Doe'}]
+        expected = {'email': 'john@doe.com', 'name': 'John Doe'}
+        result = controller.get_user_by_email('john@doe.com')
+        dao_mock.find.assert_called_once_with({'email': 'john@doe.com'})
+        assert result == expected
 
-    def test_invalid_email(self, dao_mock, controller):
+    def test_nonexistent_email_raises_error(self, dao_mock, controller):
         invalid_email = 'invalid_email'
         with pytest.raises(ValueError):
             controller.get_user_by_email(invalid_email)
         dao_mock.find.assert_not_called()
 
-    def test_no_user_found(self, dao_mock, controller):
+    def test_email_not_found_returns_none(self, dao_mock, controller):
         dao_mock.find.return_value = []
         result = controller.get_user_by_email('nonexistent@example.com')
         dao_mock.find.assert_called_once_with({'email': 'nonexistent@example.com'})
         assert result is None
 
-    def test_multiple_users_found(self, dao_mock, controller):
-        dao_mock.find.return_value = [{'email': 'test@example.com', 'name': 'Test User 1'}, {'email': 'test@example.com', 'name': 'Test User 2'}]
+    def test_duplicate_emails_found_raises_exception(self, dao_mock, controller):
+        dao_mock.find.return_value = [{'email': 'john@doe.com', 'name': 'John Doe 1'}, {'email': 'john@doe.com', 'name': 'John Doe 2'}]
         with pytest.raises(Exception):
-            controller.get_user_by_email('test@example.com')
-        dao_mock.find.assert_called_once_with({'email': 'test@example.com'})
+            controller.get_user_by_email('john@doe.com')
+        dao_mock.find.assert_called_once_with({'email': 'john@doe.com'})
 
-    def test_get_user_by_email_empty_string(self, dao_mock, controller):
+    def test_empty_email_raises_value_error(self, dao_mock, controller):
         empty_email = ''
         with pytest.raises(ValueError):
             controller.get_user_by_email(empty_email)
         dao_mock.find.assert_not_called()
 
-    def test_get_user_by_email_null(self, dao_mock, controller):
+    def test_null_email_raises_type_error(self, dao_mock, controller):
         null_email = None
         with pytest.raises(TypeError):
             controller.get_user_by_email(null_email)
