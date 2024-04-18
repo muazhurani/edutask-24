@@ -37,3 +37,15 @@ class TestUserController:
         with pytest.raises(Exception):
             controller.get_user_by_email('test@example.com')
         dao_mock.find.assert_called_once_with({'email': 'test@example.com'})
+
+    def test_get_user_by_email_empty_string(self, dao_mock, controller):
+        empty_email = ''
+        with pytest.raises(ValueError):
+            controller.get_user_by_email(empty_email)
+        dao_mock.find.assert_not_called()
+
+    def test_get_user_by_email_null(self, dao_mock, controller):
+        null_email = None
+        with pytest.raises(TypeError):
+            controller.get_user_by_email(null_email)
+        dao_mock.find.assert_not_called()
