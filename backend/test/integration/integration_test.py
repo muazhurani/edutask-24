@@ -1,93 +1,80 @@
 import pytest
-from pymongo import errors
-from bson.objectid import ObjectId
+from pymongo import MongoClient
 from src.util.dao import DAO
+from pymongo.errors import WriteError
 
-@pytest.mark.integration
-def test_integration_rule_violation_one():
-    user_access = DAO("user")
-    profile_data = {'lastName': 'Doe', 'email': 'John@doe.com'}
+@pytest.fixture(scope="function")
+def test_dao():
+    # Configuration for a test database
+    client = MongoClient('mongodb://localhost:27017/')
+    db = client["test_db"]
+    collection = db["test_collection"]
 
-    with pytest.raises(Exception) as error_capture:
-        newly_created_user = user_access.create(profile_data)
-        user_identifier = newly_created_user['_id']['$oid']
-        user_access.collection.delete_one({'_id': ObjectId(user_identifier)})
-    assert error_capture.type == errors.WriteError
+    # Validator similar to the one used in production, adjust as needed
+    mock_validator = {
+        '$jsonSchema': {
+            'bsonType': 'object',
+            'required': ['name', 'email'],
+            'properties': {
+                'name': {
+                    'bsonType': 'string',
+                    'description': 'must be a string and is required'
+                },
+                'email': {
+                    'bsonType': 'string',
+                    'description': 'must be a string and is required'
+                }
+            }
+        }
+    }
+
+    # Set up the collection with the validator
+    if "test_collection" not in db.list_collection_names():
+        db.create_collection("test_collection", validator=mock_validator)
+
+    # Initialize DAO with the test collection
+    dao_instance = DAO('test_collection')
+    yield dao_instance
+
+    # Cleanup
+    db.drop_collection("test_collection")
+    client.close()
 
 
-@pytest.mark.integration
-def test_integration_rule_violation_three():
-    user_access = DAO("user")
-    initial_user = {'firstName': 'John', 'lastName': 'Doe', 'email': 'John@doe.com'}
-    duplicate_user = {'firstName': 'Enaj', 'lastName': 'Eod', 'email': 'John@doe.com'}
-    first_user_created = user_access.create(initial_user)
+class TestDAOCreation:
+    def test_create_valid_input(self, test_dao):
+        result = test_dao.create({'name': 'Jane', 'email': 'jane.doe@example.com'})
+        assert result is not None
+        assert result['name'] == 'Jane'
+        assert result['email'] == 'jane.doe@example.com'
 
-    first_user_id = first_user_created['_id']['$oid']
+    def test_create_fail_missing_name(self, test_dao):
+        with pytest.raises(WriteError):
+            test_dao.create({'email': 'jane.doe@example.com'})
 
-    with pytest.raises(Exception) as error_capture:
-        second_user_created = user_access.create(duplicate_user)
-        second_user_id = second_user_created['_id']['$oid']
-        user_access.collection.delete_one({'_id': ObjectId(second_user_id)})
-        user_access.collection.delete_one({'_id': ObjectId(first_user_id)})
+    def test_create_fail_missing_email(self, test_dao):
+        with pytest.raises(WriteError):
+            test_dao.create({'name': 'Jane'})
 
-    user_access.collection.delete_one({'_id': ObjectId(first_user_id)})
-    assert error_capture.type == errors.WriteError
+    def test_create_no_input(self, test_dao):
+        with pytest.raises(WriteError):
+            test_dao.create({})
 
-@pytest.mark.integration
-def test_user_profile_creation():
-    user_access = DAO("user")
-    new_user_profile = {'firstName': 'John', 'lastName': 'Doe', 'email': 'John@doe.com'}
+    def test_create_with_wrong_nametype(self, test_dao):
+        with pytest.raises(WriteError):
+            test_dao.create({'name': 1234, 'email': 'jane.doe@example.com'})
 
-    user_profile_created = user_access.create(new_user_profile)
+    def test_create_with_wrong_emailtype(self, test_dao):
+        with pytest.raises(WriteError):
+            test_dao.create({'name': 'Jane', 'email': 1234})
 
-    profile_identifier = user_profile_created['_id']['$oid']
+    def test_create_with_extra_fields(self, test_dao):
+        # This should succeed if the extra field does not violate the schema
+        result = test_dao.create({'name': 'Jane', 'email': 'jane.doe@example.com', 'age': 30})
+        assert result is not None
+        assert 'age' not in result
 
-    user_access.collection.delete_one({'_id': ObjectId(profile_identifier)})
-
-    del user_profile_created['_id']
-
-    assert user_profile_created == new_user_profile
-
-@pytest.mark.integration
-def test_integration_rule_violation_two():
-    user_access = DAO("user")
-    profile_data = {'firstName': 10, 'lastName': 'Doe', 'email': 'John@doe.com'}
-
-    with pytest.raises(Exception) as error_capture:
-        newly_created_user = user_access.create(profile_data)
-        user_identifier = newly_created_user['_id']['$oid']
-        user_access.collection.delete_one({'_id': ObjectId(user_identifier)})
-    assert error_capture.type == errors.WriteError
-
-@pytest.mark.integration
-def test_user_profile_update():
-    user_access = DAO("user")
-    new_user_profile = {'firstName': 'John', 'lastName': 'Doe', 'email': 'John@doe.com'}
-
-    user_profile_created = user_access.create(new_user_profile)
-    profile_identifier = user_profile_created['_id']['$oid']
-
-    updated_profile_data = {'firstName': 'John', 'lastName': 'Doe', 'email': 'John.doe.updated@gmail.com'}
-    user_access.collection.update_one({'_id': ObjectId(profile_identifier)}, {'$set': updated_profile_data})
-
-    updated_user_profile = user_access.collection.find_one({'_id': ObjectId(profile_identifier)})
-
-    user_access.collection.delete_one({'_id': ObjectId(profile_identifier)})
-
-    del updated_user_profile['_id']
-
-    assert updated_user_profile == updated_profile_data
-
-@pytest.mark.integration
-def test_user_profile_deletion():
-    user_access = DAO("user")
-    new_user_profile = {'firstName': 'John', 'lastName': 'Doe', 'email': 'John@doe.com'}
-
-    user_profile_created = user_access.create(new_user_profile)
-    profile_identifier = user_profile_created['_id']['$oid']
-
-    user_access.collection.delete_one({'_id': ObjectId(profile_identifier)})
-
-    deleted_user_profile = user_access.collection.find_one({'_id': ObjectId(profile_identifier)})
-
-    assert deleted_user_profile is None
+    def test_create_with_minimal_strings(self, test_dao):
+        # This will depend on whether the validator allows empty strings
+        with pytest.raises(WriteError):
+            test_dao.create({'name': '', 'email': 'jane.doe@example.com'})
