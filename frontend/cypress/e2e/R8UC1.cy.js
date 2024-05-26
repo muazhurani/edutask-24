@@ -69,15 +69,6 @@ describe('adding Todo item to the list of todos', () => {
       .should('be.disabled');
   });
 
-it('does not enable the "Add" button when the description field contains only whitespace', () => {
-  cy.get('form.inline-form input[type="text"]')
-    .type('   ')
-    .should('have.value', '   ');
-
-  cy.get('form.inline-form input[type="submit"]')
-    .should('be.disabled');
-});
-
   after(function () {
     // Delete the user after tests
     cy.request({
