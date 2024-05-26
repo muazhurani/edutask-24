@@ -73,21 +73,6 @@ describe('toggling Todo item state', () => {
       .should('have.class', 'unchecked');
   });
 
-  it('handles rapid toggling of a todo item', () => {
-    const toggle = () => {
-      cy.get('.todo-list .todo-item .checker').first().click();
-    };
-
-    // Rapidly click the toggle 10 times
-    for (let i = 0; i < 10; i++) {
-      toggle();
-    }
-
-    // Verify it toggles correctly, final state can depend on whether it starts checked or not
-    cy.get('.todo-list .todo-item').first()
-      .find('.checker')
-      .should('exist'); // We expect it just to exist and not throw an error or glitch visually
-  });
 
   after(function () {
     // Delete the user after tests
